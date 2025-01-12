@@ -1,0 +1,28 @@
+-- Criação da tabela de exemplo
+CREATE TABLE TRANSACOES (
+    ID INT PRIMARY KEY,
+    VALOR_ORIGINAL FLOAT,
+    VALOR_CALCULADO FLOAT
+);
+
+-- Inserir dados para simular carga
+INSERT INTO TRANSACOES (ID, VALOR_ORIGINAL)
+SELECT TOP (100000) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS ID,
+       RAND(CHECKSUM(NEWID())) * 1000 AS VALOR_ORIGINAL
+FROM sys.objects AS s1 CROSS JOIN sys.objects AS s2;
+
+-- Atualizar a tabela usando paralelismo com MAXDOP
+WITH CTE_Batch AS (
+    SELECT ID, VALOR_ORIGINAL,
+           ROW_NUMBER() OVER (ORDER BY ID) AS RowNum
+    FROM TRANSACOES
+)
+UPDATE T
+SET VALOR_CALCULADO = CTE_Batch.VALOR_ORIGINAL * 1.2 -- Exemplo de cálculo
+FROM TRANSACOES AS T
+INNER JOIN CTE_Batch
+    ON T.ID = CTE_Batch.ID
+OPTION (MAXDOP 4); -- Configura paralelismo em 4 threads
+
+-- Verificar o resultado
+SELECT COUNT(*), AVG(VALOR_CALCULADO) FROM TRANSACOES;
